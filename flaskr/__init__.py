@@ -33,7 +33,12 @@ def create_app(config_name='default'):
 
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+    
+    @app.template_filter('format_number')
+    def format_number(value):
+        if isinstance(value, int):
+            return f"${value:,.0f}".replace(",", ".")
+        return value
     # Eliminamos la configuración relacionada con uploads locales
     # Inicialización de la base de datos y migración
     db.init_app(app)
