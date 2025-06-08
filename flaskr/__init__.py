@@ -1,85 +1,110 @@
 import os
-from flask import Flask, send_from_directory, request
+from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-from flask_restful import Api, Resource
+from flask_restful import Api
 from flask_migrate import Migrate
-from flask_jwt_extended import JWTManager, jwt_required
+from flask_jwt_extended import JWTManager
 from flask_cors import CORS
-from werkzeug.utils import secure_filename
 from flask_mail import Mail
-from flask import request, jsonify
-from flask import render_template
+from werkzeug.utils import secure_filename
 from datetime import datetime
 from werkzeug.security import generate_password_hash
 from dotenv import load_dotenv
-from .modelos.modelo import db
-from .vistas.vistas import (
-    VistaUsuario, VistaProductos, VistaProductosBajoStock, VistaActualizarEstadoAdmin, 
-    VistaEnviosAdmin, VistaEstadoEnvio, VistaPedidosUsuario, VistaUltimaFactura, 
-    VistaReportesProductos, VistaProducto, VistaTarjeta, VistaPaypal, VistaTransferencia, 
-    VistaProductosRecomendados, VistaCategorias, VistaCategoria, VistaUsuarios, 
-    VistaLogin, VistaSignIn, VistaCarrito, VistaCarritos, VistaCarritoActivo, 
-    VistaRolUsuario, VistaPago, VistaPerfilUsuario, VistaFacturas, VistaAjusteStock, 
-    VistaHistorialStockGeneral, VistaHistorialStockProducto, VistaStockProductos,
-    VistaFactura, VistaDetalleFactura, VistaEnvio, VistaCarritoProducto, VistaPagos, 
-    VistaPagoPaypal, VistaPagoTarjeta, VistaPagoTransferencia
-)
 
-# Cargar variables de entorno
+# Cargar variables de entorno primero
 load_dotenv()
 
-# Creamos mail a nivel global
+# Inicializar extensiones fuera de create_app
+db = SQLAlchemy()
 mail = Mail()
+jwt = JWTManager()
+migrate = Migrate()
+api = Api()
 
 def create_app(config_name='default'):
     app = Flask(__name__)
-
-    # 🔥 Configuración actualizada para PostgreSQL en Railway
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL',
-        "postgresql://postgres:RQFUCXZzJBBDLGDowpDclXuDCBaRNAlM"
-        "@interchange.proxy.rlwy.net:58274/railway?sslmode=require"
-    )
+    
+    # 1. Configuración crítica para PostgreSQL en Railway
+    db_url = os.getenv('DATABASE_URL', '').replace('postgres://', 'postgresql://')
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_size': 10,
+        'max_overflow': 20,
+        'connect_args': {
+            'sslmode': 'require',
+            'options': '-c statement_timeout=15000'  # 15 segundos timeout
+        }
+    }
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-    # Configuración para la subida de imágenes
+    
+    # 2. Configuración JWT
+    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'fallback_secret_key')
+    
+    # 3. Configuración para subida de archivos
     app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
     app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
-
-    if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        os.makedirs(app.config['UPLOAD_FOLDER'])
-
-    @app.route('/uploads/<filename>')
-    def uploaded_file(filename):
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
-    @app.template_filter('format_number')
-    def format_number(value):
-        if isinstance(value, int):
-            return f"${value:,.0f}".replace(",", ".")
-        return value
-
-    # Inicialización de la base de datos y migración
-    db.init_app(app)
-    migrate = Migrate(app, db)
-
-    # Configuración de JWT
-    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'clave_secreta')
-    jwt = JWTManager(app)
-
-    # Configuración de Flask-Mail
+    # 4. Configuración de email
     app.config['MAIL_SERVER'] = 'smtp.gmail.com'
     app.config['MAIL_PORT'] = 587
     app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_DEBUG'] = True
-    app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'dilanf1506@gmail.com')
-    app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', 'zycb icwa fxby yocj')
-    app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'dilanf1506@gmail.com')
+    app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+    app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
 
+    # 5. Inicializar extensiones
+    db.init_app(app)
+    migrate.init_app(app, db)
+    jwt.init_app(app)
     mail.init_app(app)
     CORS(app)
+    api.init_app(app)
+
+    # 6. Registrar rutas
+    register_routes(app)
+
+    # 7. Filtro personalizado para templates
+    @app.template_filter('format_number')
+    def format_number(value):
+        if isinstance(value, (int, float)):
+            return f"${value:,.0f}".replace(",", ".")
+        return value
+
+    # 8. Ruta para archivos subidos
+    @app.route('/uploads/<filename>')
+    def uploaded_file(filename):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+    # 9. Verificar conexión a DB al iniciar
+    with app.app_context():
+        try:
+            db.engine.connect()
+            print("✅ Conexión a PostgreSQL exitosa!")
+        except Exception as e:
+            print(f"❌ Error conectando a PostgreSQL: {str(e)}")
+
+    return app
+
+def register_routes(app):
+    """Registra todas las rutas de la API"""
+    from .vistas.vistas import (
+        VistaUsuario, VistaProductos, VistaProductosBajoStock, 
+        VistaActualizarEstadoAdmin, VistaEnviosAdmin, VistaEstadoEnvio,
+        VistaPedidosUsuario, VistaUltimaFactura, VistaReportesProductos,
+        VistaProducto, VistaTarjeta, VistaPaypal, VistaTransferencia,
+        VistaProductosRecomendados, VistaCategorias, VistaCategoria,
+        VistaUsuarios, VistaLogin, VistaSignIn, VistaCarrito, VistaCarritos,
+        VistaCarritoActivo, VistaRolUsuario, VistaPago, VistaPerfilUsuario,
+        VistaFacturas, VistaAjusteStock, VistaHistorialStockGeneral,
+        VistaHistorialStockProducto, VistaStockProductos, VistaFactura,
+        VistaDetalleFactura, VistaEnvio, VistaCarritoProducto, VistaPagos,
+        VistaPagoPaypal, VistaPagoTarjeta, VistaPagoTransferencia
+    )
 
     # Rutas de la API
-    api = Api(app)
     api.add_resource(VistaUsuario, '/usuario/<int:id_usuario>')
     api.add_resource(VistaUsuarios, '/usuarios')
     api.add_resource(VistaProducto, '/productos/<int:id_producto>')
@@ -121,5 +146,5 @@ def create_app(config_name='default'):
     api.add_resource(VistaActualizarEstadoAdmin, '/api/admin/envios/<int:id_envio>/estado')
     api.add_resource(VistaProductosBajoStock, '/api/productos/bajo-stock')
 
-
-    return app
+# Inicialización importante para migraciones
+from .modelos import modelo
