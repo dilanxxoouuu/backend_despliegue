@@ -1,14 +1,10 @@
-import os
-from flask import Flask, send_from_directory, request
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Api, Resource
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager, jwt_required
 from flask_cors import CORS
-from werkzeug.utils import secure_filename
 from flask_mail import Mail
-from flask import request, jsonify
-from flask import render_template
 from datetime import datetime
 from werkzeug.security import generate_password_hash
 from dotenv import load_dotenv
@@ -37,22 +33,7 @@ def create_app(config_name='default'):
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
-    app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
-
-    if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        os.makedirs(app.config['UPLOAD_FOLDER'])
-
-    @app.route('/uploads/<filename>')
-    def uploaded_file(filename):
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-    
-    @app.template_filter('format_number')
-    def format_number(value):
-        if isinstance(value, int):
-            return f"${value:,.0f}".replace(",", ".")
-        return value
-
+    # Eliminamos la configuración relacionada con uploads locales
     # Inicialización de la base de datos y migración
     db.init_app(app)
     migrate = Migrate(app, db)
@@ -115,6 +96,5 @@ def create_app(config_name='default'):
     api.add_resource(VistaEnviosAdmin, '/api/admin/envios')
     api.add_resource(VistaActualizarEstadoAdmin, '/api/admin/envios/<int:id_envio>/estado')
     api.add_resource(VistaProductosBajoStock, '/api/productos/bajo-stock')
-
 
     return app

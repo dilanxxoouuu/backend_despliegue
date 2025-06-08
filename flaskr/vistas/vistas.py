@@ -256,45 +256,32 @@ class VistaProductos(Resource):
 
     @jwt_required()
     def post(self):
-        """Crear un nuevo producto con su respectiva imagen."""
+        """Crear un nuevo producto con URL de imagen desde Cloudinary."""
         try:
-            # Verificar si se ha enviado un archivo
-            if 'producto_foto' not in request.files:
-                return {'message': 'No se ha enviado una imagen para el producto'}, 400
+            # Obtener los datos del JSON
+            data = request.get_json()
+            
+            # Validar que todos los campos requeridos estén presentes
+            required_fields = ['producto_nombre', 'producto_precio', 'producto_stock', 
+                             'categoria_id', 'descripcion', 'producto_foto']
+            
+            if not all(field in data for field in required_fields):
+                return {'message': 'Faltan datos necesarios para el producto'}, 400
 
-            file = request.files['producto_foto']
-            if file and allowed_file(file.filename):
-                # Guardar la imagen en el directorio deseado
-                filename = secure_filename(file.filename)
-                file_path = os.path.join(UPLOAD_FOLDER, filename)
-                file.save(file_path)
+            # Crear un nuevo producto con la URL de la imagen
+            nuevo_producto = Producto(
+                producto_nombre=data['producto_nombre'],
+                producto_precio=float(data['producto_precio']),
+                producto_stock=int(data['producto_stock']),
+                categoria_id=int(data['categoria_id']),
+                descripcion=data['descripcion'],
+                producto_foto=data['producto_foto']  # URL de Cloudinary
+            )
+            
+            db.session.add(nuevo_producto)
+            db.session.commit()
 
-                # Obtener los datos del formulario
-                producto_nombre = request.form.get('producto_nombre')
-                producto_precio = request.form.get('producto_precio')
-                producto_stock = request.form.get('producto_stock')
-                categoria_id = request.form.get('categoria_id')
-                descripcion = request.form.get('descripcion')
-
-                # Validar que todos los campos requeridos estén presentes
-                if not producto_nombre or not producto_precio or not producto_stock or not categoria_id or not descripcion:
-                    return {'message': 'Faltan datos necesarios para el producto'}, 400
-
-                # Crear un nuevo producto con la imagen guardada
-                nuevo_producto = Producto(
-                    producto_nombre=producto_nombre,
-                    producto_precio=float(producto_precio),  # Convertir el precio a float
-                    producto_stock=int(producto_stock),      # Convertir el stock a entero
-                    categoria_id=int(categoria_id),          # Convertir la categoría a entero
-                    descripcion=descripcion,
-                    producto_foto=filename  # Guardar el nombre de la imagen
-                )
-                db.session.add(nuevo_producto)
-                db.session.commit()
-
-                return {'mensaje': 'Producto creado exitosamente'}, 201
-            else:
-                return {'message': 'Formato de imagen no permitido'}, 400
+            return {'mensaje': 'Producto creado exitosamente'}, 201
         except Exception as e:
             db.session.rollback()
             return {'message': f'Ocurrió un error: {str(e)}'}, 400
@@ -307,29 +294,22 @@ class VistaProducto(Resource):
         if not producto:
             return {'message': 'El producto no existe'}, 404
 
-        # Verificar si se ha enviado una nueva imagen
-        if 'producto_foto' in request.files:
-            file = request.files['producto_foto']
-            if file and allowed_file(file.filename):
-                # Eliminar la imagen anterior si existe
-                if producto.producto_foto:
-                    try:
-                        os.remove(os.path.join(UPLOAD_FOLDER, producto.producto_foto))
-                    except FileNotFoundError:
-                        pass
-
-                filename = secure_filename(file.filename)
-                file_path = os.path.join(UPLOAD_FOLDER, filename)
-                file.save(file_path)
-
-                producto.producto_foto = filename
-
-        # Obtener los campos del cuerpo de la solicitud
-        producto.producto_nombre = request.form.get('producto_nombre', producto.producto_nombre)
-        producto.producto_precio = request.form.get('producto_precio', producto.producto_precio)
-        producto.producto_stock = request.form.get('producto_stock', producto.producto_stock)
-        producto.descripcion = request.form.get('descripcion', producto.descripcion)
-        producto.categoria_id = request.form.get('categoria_id', producto.categoria_id)
+        # Obtener los datos del JSON
+        data = request.get_json()
+        
+        # Actualizar los campos
+        if 'producto_nombre' in data:
+            producto.producto_nombre = data['producto_nombre']
+        if 'producto_precio' in data:
+            producto.producto_precio = float(data['producto_precio'])
+        if 'producto_stock' in data:
+            producto.producto_stock = int(data['producto_stock'])
+        if 'descripcion' in data:
+            producto.descripcion = data['descripcion']
+        if 'categoria_id' in data:
+            producto.categoria_id = int(data['categoria_id'])
+        if 'producto_foto' in data:
+            producto.producto_foto = data['producto_foto']  # Nueva URL de Cloudinary
 
         db.session.commit()
         return producto_schema.dump(producto), 200
@@ -340,12 +320,7 @@ class VistaProducto(Resource):
         if not producto:
             return {'message': 'Producto no encontrado'}, 404
 
-        if producto.producto_foto:
-            try:
-                os.remove(os.path.join(UPLOAD_FOLDER, producto.producto_foto))
-            except FileNotFoundError:
-                pass
-
+        # No necesitamos eliminar archivos locales, ya que las imágenes están en Cloudinary
         db.session.delete(producto)
         db.session.commit()
         return {'message': 'Producto eliminado'}, 200

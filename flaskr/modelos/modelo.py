@@ -66,7 +66,7 @@ class Producto(db.Model):
     producto_precio = db.Column(db.Integer, nullable=False)
     producto_stock = db.Column(db.Integer, nullable=False)
     descripcion = db.Column(db.String(255), nullable=False)
-    producto_foto = db.Column(db.String(100), nullable=False)
+    producto_foto = db.Column(db.String(255), nullable=False)  # Cambiamos a String(255) para URLs más largas
     categoria_id = db.Column(db.Integer, nullable=False)
 
     carritos = db.relationship('CarritoProducto', back_populates='producto')
@@ -88,7 +88,7 @@ class Producto(db.Model):
             stock_anterior=stock_actual,
             cantidad_ajuste=cantidad_entrada,
             nuevo_stock=self.producto_stock,
-            motivo=motivo
+            motivo=motoo
         )
         
         db.session.add(nuevo_registro)
