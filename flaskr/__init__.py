@@ -34,14 +34,9 @@ mail = Mail()
 def create_app(config_name='default'):
     app = Flask(__name__)
 
-    # 🔥 Configuración actualizada para PostgreSQL en Railway
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL',
-        "postgresql://postgres:RQFUCXZzJBBDLGDowpDclXuDCBaRNAlM"
-        "@interchange.proxy.rlwy.net:58274/railway?sslmode=require"
-    )
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    # Configuración para la subida de imágenes
     app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
     app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 
