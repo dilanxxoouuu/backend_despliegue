@@ -48,9 +48,10 @@ def create_app(config_name='default'):
     app.config['MAIL_PORT'] = 587
     app.config['MAIL_USE_TLS'] = True
     app.config['MAIL_DEBUG'] = True
-    app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'dilanf1506@gmail.com')
-    app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', 'zycb icwa fxby yocj')
-    app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'dilanf1506@gmail.com')
+    app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+    app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
+
 
     mail.init_app(app)
     CORS(app)
@@ -70,7 +71,7 @@ def create_app(config_name='default'):
     api.add_resource(VistaCarrito, '/carrito/<int:id_carrito>/producto', endpoint='vista_carrito_producto')
     api.add_resource(VistaCarrito, '/carrito/<int:id_carrito>', endpoint='vista_carrito_detalle')
     api.add_resource(VistaPago, '/pago')
-    api.add_resource(VistaPagos, '/pagos')
+    api.add_resource(VistaPagos, '/pagos')      
     api.add_resource(VistaTarjeta, '/pago/tarjeta')
     api.add_resource(VistaTransferencia, '/pago/transferencia')
     api.add_resource(VistaPaypal, '/pago/paypal')
