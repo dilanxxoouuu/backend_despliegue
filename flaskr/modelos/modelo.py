@@ -88,7 +88,7 @@ class Producto(db.Model):
             stock_anterior=stock_actual,
             cantidad_ajuste=cantidad_entrada,
             nuevo_stock=self.producto_stock,
-            motivo=motoo
+            motivo=motivo
         )
         
         db.session.add(nuevo_registro)
