@@ -728,7 +728,7 @@ class VistaTarjeta(Resource):
     def post(self):
         datos = request.json
         
-        # Validaciones
+        # Validaciones de tarjeta (igual que antes)
         if not datos.get('numero_tarjeta') or not re.match(r'^\d{16}$', str(datos.get('numero_tarjeta'))):
             return {"mensaje": "El número de tarjeta debe tener exactamente 16 dígitos"}, 400
             
@@ -750,16 +750,27 @@ class VistaTarjeta(Resource):
         except:
             return {"mensaje": "Formato de fecha inválido"}, 400
 
+        # Verificar que existe un pago asociado (como lo hace PayPal)
+        if not datos.get('id_pago'):
+            return {"mensaje": "Se requiere un ID de pago válido"}, 400
+
+        pago = Pago.query.get(datos.get('id_pago'))
+        if not pago:
+            return {"mensaje": "Pago no encontrado"}, 404
+
+        # Crear el registro de tarjeta asociado al pago
         nueva_tarjeta = TarjetaDetalle(
-            id_pago=datos.get('id_pago'),
+            id_pago=pago.id_pago,  # Usar el ID del pago existente
             nombre_en_tarjeta=datos.get('nombre_en_tarjeta'),
             numero_tarjeta=datos.get('numero_tarjeta'),
             fecha_expiracion=datos.get('fecha_expiracion'),
             cvv=datos.get('cvv')
         )
+        
         db.session.add(nueva_tarjeta)
         db.session.commit()
-        return {"message": "Detalles de tarjeta guardados exitosamente"}, 201
+        
+        return {"message": "Detalles de tarjeta guardados exitosamente", "id_pago": pago.id_pago}, 201
 
 class VistaTransferencia(Resource):
     @jwt_required()
